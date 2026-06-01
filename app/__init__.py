@@ -1,0 +1,1 @@
+"""NeoCard API application."""
