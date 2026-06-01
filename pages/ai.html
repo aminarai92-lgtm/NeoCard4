@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>AI — NeoCard</title>
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+</head>
+<body>
+  <div class="loading-screen"><div class="spinner"></div></div>
+  <header class="app-header"><div class="container"><span class="logo"><span class="logo-icon">N</span> AI Помощник</span></div></header>
+  <main class="page container">
+    <div class="tabs" id="ai-tabs">
+      <button type="button" class="tab active" data-panel="bio">Биография</button>
+      <button type="button" class="tab" data-panel="analyze">Анализ</button>
+      <button type="button" class="tab" data-panel="career">Карьера</button>
+      <button type="button" class="tab" data-panel="skills">Навыки</button>
+    </div>
+
+    <div class="glass-card ai-panel" id="panel-bio">
+      <h3>AI Генератор биографии</h3>
+      <div class="input-group"><label>Краткая информация</label><textarea class="textarea" id="bio-input"></textarea></div>
+      <button type="button" class="btn btn-primary" id="btn-gen-bio">Сгенерировать</button>
+      <div class="ai-result" id="bio-result" hidden></div>
+    </div>
+
+    <div class="glass-card ai-panel" id="panel-analyze" hidden>
+      <h3>AI Анализ визитки</h3>
+      <div class="input-group"><label>ID визитки (или оставьте пустым)</label><input class="input" id="analyze-card-id" type="number"></div>
+      <button type="button" class="btn btn-primary" id="btn-analyze">Анализировать</button>
+      <div class="ai-result" id="analyze-result" hidden></div>
+    </div>
+
+    <div class="glass-card ai-panel" id="panel-career" hidden>
+      <h3>AI Карьерный помощник</h3>
+      <div class="input-group"><label>Навыки (через запятую)</label><input class="input" id="career-skills"></div>
+      <div class="input-group"><label>Лет опыта</label><input class="input" id="career-years" type="number" min="0"></div>
+      <button type="button" class="btn btn-primary" id="btn-career">Получить рекомендации</button>
+      <div class="ai-result" id="career-result" hidden></div>
+    </div>
+
+    <div class="glass-card ai-panel" id="panel-skills" hidden>
+      <h3>AI Генератор навыков</h3>
+      <div class="input-group"><label>Профессия</label><input class="input" id="skills-profession"></div>
+      <button type="button" class="btn btn-primary" id="btn-skills">Предложить навыки</button>
+      <div class="ai-result" id="skills-result" hidden></div>
+    </div>
+  </main>
+  <nav class="bottom-nav visible" id="bottom-nav">
+    <ul>
+      <li><a href="/pages/dashboard.html" data-nav="dashboard"><span class="nav-icon">🏠</span>Главная</a></li>
+      <li><a href="/pages/my-cards.html" data-nav="cards"><span class="nav-icon">📇</span>Визитки</a></li>
+      <li><a href="/pages/search.html" data-nav="search"><span class="nav-icon">🔍</span>Поиск</a></li>
+      <li><a href="/pages/ai.html" data-nav="ai"><span class="nav-icon">🤖</span>AI</a></li>
+      <li><a href="/pages/contacts.html" data-nav="contacts"><span class="nav-icon">👥</span>Контакты</a></li>
+    </ul>
+  </nav>
+  <script src="/js/config.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      await initAppShell("ai");
+      document.querySelectorAll("#ai-tabs .tab").forEach(tab => {
+        tab.onclick = () => {
+          document.querySelectorAll("#ai-tabs .tab").forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+          ["bio","analyze","career","skills"].forEach(p => {
+            document.getElementById(`panel-${p}`).hidden = tab.dataset.panel !== p;
+          });
+        };
+      });
+
+      document.getElementById("btn-gen-bio").onclick = async () => {
+        const brief = document.getElementById("bio-input").value;
+        if (brief.length < 10) return NeoUI.toast("Минимум 10 символов", "error");
+        const res = await api.post("/api/ai/bio", { brief_info: brief });
+        const el = document.getElementById("bio-result");
+        el.hidden = false; el.textContent = res.biography;
+      };
+
+      document.getElementById("btn-analyze").onclick = async () => {
+        const id = document.getElementById("analyze-card-id").value;
+        const body = id ? { card_id: parseInt(id) } : { card_data: { description: "", skills: [] } };
+        const res = await api.post("/api/ai/analyze", body);
+        document.getElementById("analyze-result").hidden = false;
+        document.getElementById("analyze-result").innerHTML = `
+          <p><strong>Оценка:</strong> ${res.score}/100</p>
+          <p><strong>Заполнить:</strong> ${res.missing_fields.join(", ") || "—"}</p>
+          <p><strong>Навыки:</strong> ${res.skill_suggestions.join(", ")}</p>
+          <ul>${res.improvements.map(i => `<li>${NeoUI.escapeHtml(i)}</li>`).join("")}</ul>`;
+      };
+
+      document.getElementById("btn-career").onclick = async () => {
+        const skills = document.getElementById("career-skills").value.split(",").map(s => s.trim()).filter(Boolean);
+        const years = document.getElementById("career-years").value;
+        const res = await api.post("/api/ai/career", { skills, experience_years: years ? parseInt(years) : null });
+        const el = document.getElementById("career-result");
+        el.hidden = false;
+        el.innerHTML = `<p><strong>Профессии:</strong></p><ul>${res.professions.map(p => `<li>${NeoUI.escapeHtml(p.title || p)} — ${p.match || ""}%</li>`).join("")}</ul>
+          <p><strong>Курсы:</strong></p><ul>${res.courses.map(c => `<li>${NeoUI.escapeHtml(c.title)} (${NeoUI.escapeHtml(c.provider || "")})</li>`).join("")}</ul>
+          <p><strong>Развитие:</strong></p><ul>${res.growth_paths.map(g => `<li>${NeoUI.escapeHtml(g)}</li>`).join("")}</ul>`;
+      };
+
+      document.getElementById("btn-skills").onclick = async () => {
+        const prof = document.getElementById("skills-profession").value;
+        const res = await api.post("/api/ai/skills", { profession: prof });
+        document.getElementById("skills-result").hidden = false;
+        document.getElementById("skills-result").innerHTML = res.skills.map(s => `<span class="chip">${NeoUI.escapeHtml(s)}</span>`).join("");
+      };
+    })();
+  </script>
+</body>
+</html>
