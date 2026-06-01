@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Админ — NeoCard</title>
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+</head>
+<body>
+  <div class="loading-screen"><div class="spinner"></div></div>
+  <header class="app-header">
+    <div class="container">
+      <a href="/pages/dashboard.html" class="btn btn-ghost btn-sm">← Dashboard</a>
+      <span class="logo">Admin Panel</span>
+    </div>
+  </header>
+  <main class="page container">
+    <div class="stats-grid" id="admin-stats"></div>
+    <div class="tabs" id="admin-tabs">
+      <button type="button" class="tab active" data-section="users">Пользователи</button>
+      <button type="button" class="tab" data-section="cards">Визитки</button>
+      <button type="button" class="tab" data-section="reports">Жалобы</button>
+      <button type="button" class="tab" data-section="settings">Настройки</button>
+    </div>
+
+    <section id="sec-users">
+      <div class="admin-filters">
+        <input class="input" id="user-search" placeholder="Поиск email, имя..." style="flex:1">
+        <button type="button" class="btn btn-secondary btn-sm" data-blocked="true">Заблокированные</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-blocked="false">Активные</button>
+      </div>
+      <div class="admin-table-wrap glass-card"><table class="admin-table"><thead><tr><th>ID</th><th>Email</th><th>Имя</th><th>Визиток</th><th>Статус</th><th></th></tr></thead><tbody id="users-tbody"></tbody></table></div>
+    </section>
+
+    <section id="sec-cards" hidden>
+      <div class="admin-filters"><input class="input" id="card-search" placeholder="Поиск..." style="flex:1"></div>
+      <div class="admin-table-wrap glass-card"><table class="admin-table"><thead><tr><th>ID</th><th>Slug</th><th>Имя</th><th>Владелец</th><th>Просмотры</th><th></th></tr></thead><tbody id="cards-tbody"></tbody></table></div>
+    </section>
+
+    <section id="sec-reports" hidden>
+      <div class="admin-table-wrap glass-card"><table class="admin-table"><thead><tr><th>ID</th><th>Причина</th><th>Статус</th><th>Дата</th><th></th></tr></thead><tbody id="reports-tbody"></tbody></table></div>
+    </section>
+
+    <section id="sec-settings" hidden>
+      <div class="glass-card ai-panel">
+        <h3>Настройки системы</h3>
+        <p style="color:var(--text-secondary);margin-top:0.5rem">Конфигурация через переменные окружения (.env): Google OAuth, OpenAI, CORS, Rate Limit, Admin emails.</p>
+        <p style="margin-top:1rem"><a href="/docs" target="_blank" class="btn btn-secondary btn-sm">API Swagger</a></p>
+      </div>
+    </section>
+  </main>
+  <script src="/js/config.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script>
+    (async () => {
+      const user = await NeoAuth.requireAuth();
+      if (!user || user.role !== "admin") {
+        NeoUI.toast("Доступ запрещён", "error");
+        setTimeout(() => location.href = "/pages/dashboard.html", 1500);
+        return;
+      }
+      NeoUI.hideLoading();
+
+      const stats = await api.get("/api/admin/stats");
+      document.getElementById("admin-stats").innerHTML = `
+        <div class="glass-card stat-card"><div class="value">${stats.users_count}</div><div class="label">Пользователей</div></div>
+        <div class="glass-card stat-card"><div class="value">${stats.cards_count}</div><div class="label">Визиток</div></div>
+        <div class="glass-card stat-card"><div class="value">${stats.published_cards}</div><div class="label">Опубликовано</div></div>
+        <div class="glass-card stat-card"><div class="value">${stats.pending_reports}</div><div class="label">Жалоб</div></div>`;
+
+      document.querySelectorAll("#admin-tabs .tab").forEach(tab => {
+        tab.onclick = () => {
+          document.querySelectorAll("#admin-tabs .tab").forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+          ["users","cards","reports","settings"].forEach(s => {
+            document.getElementById(`sec-${s}`).hidden = tab.dataset.section !== s;
+          });
+        };
+      });
+
+      async function loadUsers(q = "", blocked = null) {
+        let url = "/api/admin/users?";
+        if (q) url += `q=${encodeURIComponent(q)}&`;
+        if (blocked !== null) url += `blocked=${blocked}`;
+        const users = await api.get(url);
+        document.getElementById("users-tbody").innerHTML = users.map(u => `<tr>
+          <td>${u.id}</td><td>${NeoUI.escapeHtml(u.email)}</td><td>${NeoUI.escapeHtml(u.name)}</td>
+          <td>${u.cards_count}</td><td>${u.is_blocked ? "🚫" : "✓"}</td>
+          <td>
+            ${u.is_blocked ? `<button class="btn btn-sm btn-secondary" data-unblock="${u.id}">Разблок</button>` : `<button class="btn btn-sm btn-danger" data-block="${u.id}">Блок</button>`}
+            <button class="btn btn-sm btn-danger" data-del-user="${u.id}">Удалить</button>
+          </td></tr>`).join("");
+        bindUserActions();
+      }
+
+      function bindUserActions() {
+        document.querySelectorAll("[data-block]").forEach(b => b.onclick = async () => {
+          await api.patch(`/api/admin/users/${b.dataset.block}/block`);
+          loadUsers();
+        });
+        document.querySelectorAll("[data-unblock]").forEach(b => b.onclick = async () => {
+          await api.patch(`/api/admin/users/${b.dataset.unblock}/unblock`);
+          loadUsers();
+        });
+        document.querySelectorAll("[data-del-user]").forEach(b => b.onclick = async () => {
+          if (!confirm("Удалить пользователя?")) return;
+          await api.delete(`/api/admin/users/${b.dataset.delUser}`);
+          loadUsers();
+        });
+      }
+
+      async function loadCards(q = "") {
+        const url = q ? `/api/admin/cards?q=${encodeURIComponent(q)}` : "/api/admin/cards";
+        const cards = await api.get(url);
+        document.getElementById("cards-tbody").innerHTML = cards.map(c => `<tr>
+          <td>${c.id}</td><td>${NeoUI.escapeHtml(c.slug)}</td>
+          <td>${NeoUI.escapeHtml(c.first_name)} ${NeoUI.escapeHtml(c.last_name)}</td>
+          <td>${NeoUI.escapeHtml(c.owner_email)}</td><td>${c.view_count}</td>
+          <td><button class="btn btn-sm btn-danger" data-del-card="${c.id}">Удалить</button></td></tr>`).join("");
+        document.querySelectorAll("[data-del-card]").forEach(b => b.onclick = async () => {
+          if (!confirm("Удалить визитку?")) return;
+          await api.delete(`/api/admin/cards/${b.dataset.delCard}`);
+          loadCards();
+        });
+      }
+
+      async function loadReports() {
+        const reports = await api.get("/api/admin/reports");
+        document.getElementById("reports-tbody").innerHTML = reports.map(r => `<tr>
+          <td>${r.id}</td><td>${NeoUI.escapeHtml(r.reason)}</td><td>${r.status}</td>
+          <td>${NeoUI.formatDate(r.created_at)}</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" data-resolve="${r.id}">Решено</button>
+            <button class="btn btn-sm btn-ghost" data-dismiss="${r.id}">Отклонить</button>
+          </td></tr>`).join("");
+        document.querySelectorAll("[data-resolve]").forEach(b => b.onclick = async () => {
+          await api.patch(`/api/admin/reports/${b.dataset.resolve}`, { status: "resolved" });
+          loadReports();
+        });
+        document.querySelectorAll("[data-dismiss]").forEach(b => b.onclick = async () => {
+          await api.patch(`/api/admin/reports/${b.dataset.dismiss}`, { status: "dismissed" });
+          loadReports();
+        });
+      }
+
+      await loadUsers();
+      await loadCards();
+      await loadReports();
+
+      let userTimer;
+      document.getElementById("user-search").oninput = (e) => {
+        clearTimeout(userTimer);
+        userTimer = setTimeout(() => loadUsers(e.target.value), 400);
+      };
+      document.querySelectorAll("[data-blocked]").forEach(btn => {
+        btn.onclick = () => loadUsers(document.getElementById("user-search").value, btn.dataset.blocked === "true");
+      });
+      document.getElementById("card-search").oninput = (e) => {
+        clearTimeout(userTimer);
+        userTimer = setTimeout(() => loadCards(e.target.value), 400);
+      };
+    })();
+  </script>
+</body>
+</html>

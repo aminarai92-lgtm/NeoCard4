@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Редактор визитки — NeoCard</title>
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/card-templates.css">
+</head>
+<body>
+  <div class="loading-screen"><div class="spinner"></div></div>
+  <header class="app-header">
+    <div class="container">
+      <a href="/pages/my-cards.html" class="btn btn-ghost btn-sm">← Назад</a>
+      <span class="logo" style="margin:0 auto">Редактор</span>
+      <span style="width:60px"></span>
+    </div>
+  </header>
+  <main class="page container">
+    <h2 class="section-title" style="margin-top:0">Шаблон</h2>
+    <div class="template-picker" id="template-picker"></div>
+    <form id="card-form" class="glass-card" style="padding:1.5rem" data-template="modern_blue">
+      <div class="form-grid two-col">
+        <div class="input-group"><label>Имя *</label><input class="input" name="first_name" required></div>
+        <div class="input-group"><label>Фамилия *</label><input class="input" name="last_name" required></div>
+      </div>
+      <div class="input-group"><label>URL фото</label><input class="input" name="photo_url" type="url" placeholder="https://..."></div>
+      <div class="input-group"><label>Дата рождения</label><input class="input" name="birth_date" type="date"></div>
+      <div class="input-group"><label>Должность</label><input class="input" name="position"></div>
+      <div class="form-grid two-col">
+        <div class="input-group"><label>Телефон</label><input class="input" name="phone" type="tel"></div>
+        <div class="input-group"><label>Telegram</label><input class="input" name="telegram" placeholder="@username"></div>
+      </div>
+      <div class="input-group"><label>Instagram</label><input class="input" name="instagram" placeholder="@username"></div>
+      <div class="input-group"><label>Навыки (через запятую)</label><input class="input" name="skills" placeholder="JavaScript, UX, ..."></div>
+      <div class="input-group"><label>Опыт работы</label><textarea class="textarea" name="experience"></textarea></div>
+      <div class="form-grid two-col">
+        <div class="input-group"><label>Школа</label><input class="input" name="school"></div>
+        <div class="input-group"><label>Колледж</label><input class="input" name="college"></div>
+        <div class="input-group"><label>Университет</label><input class="input" name="university"></div>
+        <div class="input-group"><label>Магистратура</label><input class="input" name="masters"></div>
+      </div>
+      <div class="input-group"><label>Описание</label><textarea class="textarea" name="description" id="description"></textarea>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-bio" style="margin-top:0.5rem">✨ AI Биография</button>
+      </div>
+      <div class="input-group"><label>Сайт</label><input class="input" name="website" type="url"></div>
+      <div class="input-group">
+        <label>Дополнительные ссылки</label>
+        <div id="extra-links"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="add-link">+ Ссылка</button>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" name="action" value="save">Сохранить</button>
+        <button type="button" class="btn btn-secondary" id="btn-preview">Предпросмотр</button>
+        <button type="button" class="btn btn-primary" id="btn-publish">Опубликовать</button>
+      </div>
+    </form>
+    <div id="preview-modal" style="display:none"></div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/cards.js"></script>
+  <script src="/js/qr.js"></script>
+  <script>
+    (async () => {
+      await NeoAuth.requireAuth();
+      NeoUI.hideLoading();
+      const params = new URLSearchParams(location.search);
+      const cardId = params.get("id");
+      const form = document.getElementById("card-form");
+      const picker = document.getElementById("template-picker");
+
+      NeoCards.templates.forEach(t => {
+        const el = document.createElement("div");
+        el.className = `template-option template-${t.id}`;
+        el.innerHTML = `<span>${t.name}</span>`;
+        el.onclick = () => {
+          picker.querySelectorAll(".template-option").forEach(x => x.classList.remove("selected"));
+          el.classList.add("selected");
+          form.dataset.template = t.id;
+        };
+        picker.appendChild(el);
+      });
+      picker.firstChild?.classList.add("selected");
+
+      function addLinkRow(label = "", url = "") {
+        const row = document.createElement("div");
+        row.className = "extra-link-row form-grid two-col";
+        row.style.marginBottom = "0.5rem";
+        row.innerHTML = `<input class="input" name="link_label" placeholder="Название" value="${NeoUI.escapeHtml(label)}">
+          <input class="input" name="link_url" placeholder="URL" value="${NeoUI.escapeHtml(url)}">`;
+        document.getElementById("extra-links").appendChild(row);
+      }
+      document.getElementById("add-link").onclick = () => addLinkRow();
+
+      async function loadCard() {
+        if (!cardId) return;
+        const card = await api.get(`/api/cards/${cardId}`);
+        form.dataset.template = card.template;
+        picker.querySelectorAll(".template-option").forEach(el => {
+          el.classList.toggle("selected", el.classList.contains(`template-${card.template}`));
+        });
+        Object.entries({
+          first_name: card.first_name, last_name: card.last_name, birth_date: card.birth_date,
+          position: card.position, phone: card.phone, telegram: card.telegram,
+          instagram: card.instagram, experience: card.experience, school: card.school,
+          college: card.college, university: card.university, masters: card.masters,
+          description: card.description, website: card.website, photo_url: card.photo_url,
+        }).forEach(([k, v]) => { const el = form.elements[k]; if (el && v) el.value = v; });
+        form.elements.skills.value = (card.skills || []).join(", ");
+        (card.extra_links || []).forEach(l => addLinkRow(l.label, l.url));
+      }
+      await loadCard().catch(() => {});
+
+      document.getElementById("btn-ai-bio").onclick = async () => {
+        const brief = prompt("Кратко опишите себя (опыт, сфера, достижения):");
+        if (!brief) return;
+        NeoUI.showLoading();
+        try {
+          const res = await api.post("/api/ai/bio", { brief_info: brief });
+          form.elements.description.value = res.biography;
+          NeoUI.toast("Биография сгенерирована");
+        } catch (e) { NeoUI.toast(e.message, "error"); }
+        NeoUI.hideLoading();
+      };
+
+      async function saveCard(publish = false) {
+        const payload = NeoCards.formToPayload(form);
+        let card;
+        if (cardId) {
+          card = await api.put(`/api/cards/${cardId}`, payload);
+        } else {
+          card = await api.post("/api/cards", payload);
+          history.replaceState(null, "", `?id=${card.id}`);
+        }
+        if (publish) {
+          card = await api.post(`/api/cards/${card.id}/publish`);
+          NeoUI.toast("Визитка опубликована!");
+        } else {
+          NeoUI.toast("Сохранено");
+        }
+        return card;
+      }
+
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        try { await saveCard(false); } catch (err) { NeoUI.toast(err.message, "error"); }
+      };
+
+      document.getElementById("btn-publish").onclick = async () => {
+        try { const c = await saveCard(true); location.href = `/pages/card.html?slug=${c.slug}`; }
+        catch (e) { NeoUI.toast(e.message, "error"); }
+      };
+
+      document.getElementById("btn-preview").onclick = async () => {
+        try {
+          let card;
+          if (cardId) {
+            await saveCard(false);
+            card = await api.get(`/api/cards/preview/${cardId}`);
+          } else {
+            card = await saveCard(false);
+            card = await api.get(`/api/cards/preview/${card.id}`);
+          }
+          const overlay = document.createElement("div");
+          overlay.className = "modal-overlay";
+          overlay.innerHTML = '<div class="modal glass-card" id="preview-inner"></div>';
+          document.body.appendChild(overlay);
+          NeoCards.renderPublicCard(card, overlay.querySelector("#preview-inner"));
+          overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        } catch (e) { NeoUI.toast(e.message, "error"); }
+      };
+    })();
+  </script>
+</body>
+</html>

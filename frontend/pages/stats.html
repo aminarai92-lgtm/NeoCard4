@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Статистика — NeoCard</title>
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+</head>
+<body>
+  <div class="loading-screen"><div class="spinner"></div></div>
+  <header class="app-header">
+    <div class="container">
+      <a href="/pages/my-cards.html" class="btn btn-ghost btn-sm">← Назад</a>
+      <span class="logo">Статистика</span>
+    </div>
+  </header>
+  <main class="page container">
+    <div class="stats-grid" id="stats-top"></div>
+    <h2 class="section-title">Активность (14 дней)</h2>
+    <div class="glass-card" style="padding:1.5rem"><div class="chart-bars" id="chart"></div></div>
+    <h2 class="section-title">Последние просмотры</h2>
+    <div class="glass-card" style="padding:1rem" id="recent-views"></div>
+  </main>
+  <script src="/js/config.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script>
+    (async () => {
+      await NeoAuth.requireAuth();
+      const id = new URLSearchParams(location.search).get("id");
+      if (!id) { location.href = "/pages/my-cards.html"; return; }
+      try {
+        const s = await api.get(`/api/cards/${id}/stats`);
+        document.getElementById("stats-top").innerHTML = `
+          <div class="glass-card stat-card"><div class="value">${s.views}</div><div class="label">Просмотры</div></div>
+          <div class="glass-card stat-card"><div class="value">${s.saves}</div><div class="label">Сохранения</div></div>
+          <div class="glass-card stat-card"><div class="value">${s.qr_scans}</div><div class="label">QR сканы</div></div>`;
+        const max = Math.max(...s.activity_chart.map(d => d.views), 1);
+        document.getElementById("chart").innerHTML = s.activity_chart.map(d =>
+          `<div class="chart-bar" style="height:${Math.max(4, (d.views / max) * 100)}%" title="${d.date}: ${d.views}"></div>`
+        ).join("");
+        document.getElementById("recent-views").innerHTML = s.recent_views.length
+          ? `<ul>${s.recent_views.map(v => `<li style="padding:0.5rem 0;border-bottom:1px solid var(--border-glass)">${NeoUI.formatDate(v.at)} — ${NeoUI.escapeHtml(v.referrer || "прямой переход")}</li>`).join("")}</ul>`
+          : '<p class="empty-state">Пока нет просмотров</p>';
+      } catch (e) { NeoUI.toast(e.message, "error"); }
+      NeoUI.hideLoading();
+    })();
+  </script>
+</body>
+</html>

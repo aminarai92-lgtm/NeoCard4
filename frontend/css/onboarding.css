@@ -1,0 +1,136 @@
+.onboarding {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.onboarding-slides {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.onboarding-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  opacity: 0;
+  transform: translateX(40px);
+  pointer-events: none;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.onboarding-slide.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  position: relative;
+}
+
+.onboarding-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  background: var(--gradient-primary);
+  display: grid;
+  place-items: center;
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  animation: float 3s ease-in-out infinite;
+  box-shadow: var(--shadow-glow);
+}
+
+.onboarding-slide h1 {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+  max-width: 400px;
+}
+
+.onboarding-slide p {
+  color: var(--text-secondary);
+  max-width: 360px;
+  margin-bottom: 2rem;
+}
+
+.feature-list {
+  list-style: none;
+  text-align: left;
+  max-width: 320px;
+  width: 100%;
+}
+
+.feature-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.feature-list .icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.onboarding-dots button {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--border-glass);
+  cursor: pointer;
+  transition: var(--transition);
+  padding: 0;
+}
+
+.onboarding-dots button.active {
+  width: 24px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.onboarding-footer {
+  padding: 1.5rem;
+  padding-bottom: calc(1.5rem + var(--safe-bottom));
+}
+
+.google-btn {
+  width: 100%;
+  max-width: 320px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: #fff;
+  color: #1f2937;
+  font-weight: 600;
+  padding: 1rem 1.5rem;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.google-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.google-btn svg {
+  width: 20px;
+  height: 20px;
+}

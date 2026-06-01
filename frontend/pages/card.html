@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Визитка — NeoCard</title>
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/card-templates.css">
+</head>
+<body>
+  <div class="loading-screen"><div class="spinner"></div></div>
+  <main class="page container" style="padding-top:2rem">
+    <div id="card-container"></div>
+    <p style="text-align:center;margin-top:1rem">
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-report">Пожаловаться</button>
+    </p>
+    <p style="text-align:center;margin-top:0.5rem">
+      <a href="/index.html" style="color:var(--text-muted)">Создать свою визитку на NeoCard</a>
+    </p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/cards.js"></script>
+  <script src="/js/qr.js"></script>
+  <script>
+    (async () => {
+      const slug = new URLSearchParams(location.search).get("slug");
+      const fromQr = new URLSearchParams(location.search).get("qr") === "1";
+      if (!slug) { location.href = "/index.html"; return; }
+      try {
+        const qs = fromQr ? "?source=qr" : "";
+        const card = await api.get(`/api/cards/public/${slug}${qs}`);
+        document.title = `${card.first_name} ${card.last_name} — NeoCard`;
+        NeoCards.renderPublicCard(card, document.getElementById("card-container"));
+        const url = NeoConfig.cardPublicUrl(slug);
+        await NeoQR.render(document.getElementById("qr-container"), url);
+        document.getElementById("btn-share").onclick = () => NeoUI.shareCard(slug, `${card.first_name} ${card.last_name}`);
+        document.getElementById("btn-copy").onclick = () => NeoUI.copyText(url);
+        document.getElementById("btn-vcard").onclick = () => NeoCards.generateVCard(card);
+        let currentCard = card;
+        document.getElementById("btn-report").onclick = async () => {
+          const reason = prompt("Причина жалобы:");
+          if (!reason) return;
+          try {
+            if (!NeoAuth.isLoggedIn()) { NeoUI.toast("Войдите для отправки жалобы", "error"); return; }
+            await api.post("/api/admin/reports", { card_id: currentCard.id, reason, details: "" });
+            NeoUI.toast("Жалоба отправлена");
+          } catch (e) { NeoUI.toast(e.message, "error"); }
+        };
+        document.getElementById("btn-save").onclick = async () => {
+          if (!NeoAuth.isLoggedIn()) {
+            NeoUI.toast("Войдите, чтобы сохранить", "error");
+            setTimeout(() => location.href = "/index.html", 1500);
+            return;
+          }
+          try {
+            await api.post(`/api/cards/${card.id}/save`);
+            NeoUI.toast("Визитка сохранена");
+            document.getElementById("btn-save").textContent = "✓ Сохранено";
+          } catch (e) { NeoUI.toast(e.message, "error"); }
+        };
+      } catch (e) {
+        const msg = e.data?.detail || e.message || "Не удалось загрузить визитку";
+        document.getElementById("card-container").innerHTML = `
+          <div class="empty-state glass-card" style="padding:2rem">
+            <p style="font-size:1.1rem;margin-bottom:0.75rem">${NeoUI.escapeHtml(msg)}</p>
+            <p style="color:var(--text-muted);font-size:0.9rem">Владельцу: опубликуйте визитку и отправьте ссылку с работающего сайта (не localhost).</p>
+          </div>`;
+      }
+      NeoUI.hideLoading();
+    })();
+  </script>
+</body>
+</html>

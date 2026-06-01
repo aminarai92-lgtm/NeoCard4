@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Мои визитки — NeoCard</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+</head>
+<body>
+  <div class="loading-screen"><div class="spinner"></div></div>
+  <header class="app-header" id="app-header">
+    <div class="container">
+      <a href="/pages/dashboard.html" class="logo"><span class="logo-icon">N</span> NeoCard</a>
+      <div class="header-actions">
+        <a href="/pages/editor.html" class="btn btn-primary btn-sm">+ Создать</a>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-logout">Выход</button>
+      </div>
+    </div>
+  </header>
+  <main class="page container">
+    <h1 class="dashboard-greeting">Мои визитки</h1>
+    <div class="cards-grid" id="cards-list"></div>
+  </main>
+  <nav class="bottom-nav visible" id="bottom-nav">
+    <ul>
+      <li><a href="/pages/dashboard.html" data-nav="dashboard"><span class="nav-icon">🏠</span>Главная</a></li>
+      <li><a href="/pages/my-cards.html" data-nav="cards"><span class="nav-icon">📇</span>Визитки</a></li>
+      <li><a href="/pages/search.html" data-nav="search"><span class="nav-icon">🔍</span>Поиск</a></li>
+      <li><a href="/pages/ai.html" data-nav="ai"><span class="nav-icon">🤖</span>AI</a></li>
+      <li><a href="/pages/contacts.html" data-nav="contacts"><span class="nav-icon">👥</span>Контакты</a></li>
+    </ul>
+  </nav>
+  <script src="/js/config.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      await initAppShell("cards");
+      const list = document.getElementById("cards-list");
+      try {
+        const cards = await api.get("/api/cards/mine");
+        if (!cards.length) {
+          list.innerHTML = '<div class="empty-state glass-card"><p>Нет визиток</p><a href="/pages/editor.html" class="btn btn-primary" style="margin-top:1rem">Создать</a></div>';
+          return;
+        }
+        list.innerHTML = cards.map(c => {
+          const actions = `<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem" onclick="event.stopPropagation()">
+            <a href="/pages/editor.html?id=${c.id}" class="btn btn-secondary btn-sm">Редактировать</a>
+            <a href="/pages/card.html?slug=${c.slug}" class="btn btn-secondary btn-sm" target="_blank">Открыть</a>
+            <a href="/pages/stats.html?id=${c.id}" class="btn btn-secondary btn-sm">Статистика</a>
+            <button type="button" class="btn btn-secondary btn-sm" data-share="${c.slug}" data-name="${NeoUI.escapeHtml(c.first_name)}">Поделиться</button>
+            <button type="button" class="btn btn-danger btn-sm" data-delete="${c.id}">Удалить</button>
+          </div>`;
+          return NeoUI.cardListItemHTML(c, actions);
+        }).join("");
+        list.querySelectorAll("[data-share]").forEach(btn => {
+          btn.onclick = () => {
+            const card = cards.find((c) => c.slug === btn.dataset.share);
+            if (card && !card.is_published) {
+              NeoUI.toast("Сначала опубликуйте визитку в редакторе", "error");
+              return;
+            }
+            NeoUI.shareCard(btn.dataset.share, btn.dataset.name);
+          };
+        });
+        list.querySelectorAll("[data-delete]").forEach(btn => {
+          btn.onclick = async () => {
+            if (!NeoUI.confirm("Удалить визитку?")) return;
+            await api.delete(`/api/cards/${btn.dataset.delete}`);
+            NeoUI.toast("Удалено");
+            location.reload();
+          };
+        });
+      } catch (e) { NeoUI.toast(e.message, "error"); }
+    })();
+  </script>
+</body>
+</html>
